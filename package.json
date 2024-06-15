@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "africastalking": "^0.6.7",
+    "axios": "^1.7.2",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-async-handler": "^1.2.0",
+    "firebase-admin": "^12.1.1",
+    "google-auth-library": "^9.10.0",
+    "init": "^0.1.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.13",
+    "nodemon": "^3.0.2",
+    "twilio": "^5.1.0"
+  }
+}
