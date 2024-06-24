@@ -190,8 +190,9 @@ router.post("/venderSignup",upload.fields([
 	router.post("/get_attribute",venderControllers.get_attribute);
 	router.post("/sendNotification",upload.single('image'),venderControllers.sendNotification);
 	router.get("/dummy_api",venderControllers.dummy_api);
+	router.post("/updateStaff",upload.single('staff_image'),venderControllers.updateStaff);
 	
 	
-
+	
 // exprots router
 module.exports=router;

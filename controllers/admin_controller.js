@@ -1654,28 +1654,42 @@ const Term_condiction_list = async (req, res) => {
 //   Admin singup api
 const AdminSignup = async (req, res) => {
 	try {
-		const { email, password } = req.body;
+		const { email, password,type,first_name,last_name,address,restrictions } = req.body;
 		if (!email || !password) {
-			res.status(400).json({ "result": "false", "message": "required parameter are email,password" });
+		return 	res.status(400).json({ "result": "false", "message": "required parameter are email,password,restrictions,first_name,last_name,address" });
 		}
 
 		const matchData = await Admin.findOne({ email: email });
 		if (matchData) {
-			res.status(400).json({ "result": "false", "message": "Admin allready exist" })
+			res.status(400).json({ "result": "false", "message": "Staff allready exist" })
 		} else {
 			// Hash the password before saving it
 			const hashedPassword = await bcrypt.hash(password, 10);
 
-			const newUser = new Admin({ email, password: hashedPassword });
+			// Parse and validate restrictions
+			let parsedRestrictions;
+			try {
+			  parsedRestrictions = JSON.parse(restrictions);
+			  if (typeof parsedRestrictions !== 'object' || Array.isArray(parsedRestrictions)) {
+				throw new Error("Invalid restrictions format");
+			  }
+			} catch (err) {
+			  return res.status(400).json({
+				result: false,
+				message: "Invalid restrictions format",
+			  });
+			}
+		
+
+			const newUser = new Admin({ email, password: hashedPassword,first_name,last_name,address,type:1,restrictions:parsedRestrictions });
 			const data = await newUser.save();
-			res.status(200).json({ "result": "true", "message": "Admin created sucessfully", data: data })
+			res.status(200).json({ "result": "true", "message": "Staff created sucessfully", data: data })
 		}
 	} catch (err) {
 		res.status(400).json({ "result": "false", "message": err.message });
 	}
 
 };
-
 
 
 
@@ -1685,33 +1699,72 @@ const AdminLogin = async (req, res) => {
 	try {
 		const { email, password } = req.body;
 		if (!email || !password) {
-			res.status(400).json({ "result": "false", "message": "required parameter are email,password" });
-		} else {
-			const matchData = await Admin.findOne({ email });
+		 return	res.status(400).json({ "result": "false", "message": "required parameter are email,password" });
+		} 
+			const matchData = await Admin.findOne({email});
 			if (!matchData) {
-				res.status(400).json({ "result": "true", "message": "Invalid email and password" })
+				return res.status(400).json({ "result": "false",
+					"message": "Invalid email and password"
+					})
+			}
+			if(matchData.staff_status=="1"){
+				return res.status(400).json({ "result": "false", "message": "Your account has been blocked" });
+			}
 
-			} else {
+			if(matchData.type=="0"){
 				// Compare the provided password with the hashed password in the database
 				const passwordMatch = await bcrypt.compare(password, matchData.password);
-
+ 
 				if (!passwordMatch) {
-					return res.status(400).json({ "result": "true", "message": "Invalid email and password" });
+                    return res.status(400).json({ "result": "false", "message": "Invalid email and password" });
+				}else{
+					// Generate a JWT token
+					const token = jwt.sign({ adminId: matchData._id, email: matchData.email }, process.env.ACCESS_TOKEN_SECURITY, { expiresIn: '24h' });
+					res.status(200).json({ "result": "true", "message": "Admin login sucessfully",
+						 token,
+						  data: matchData,
+						  permission:{
+							"Customers":["/Customer List","/Customer Reviews","/Loyalty Points"],
+							"Staff":["/Add New Staff","/Staff List"],
+							" Vendor": ["/Add New Vendor","/Vendor List","/Vendor Withdrow"], 
+							 "Delivery Men": ["/Add New Deliveryman","/Delivery Man List","/Delivery Man Withdrow","/Emergency Contact"],
+							   "Category": ["/Main Cetagory","/Cetagory","/Subcategory","/Sub Subcetagory"],
+							  "Product Attribute": ["/Brands","/Product Type"], 
+							  "Add Attribute" :["/Add Attribute"], 
+							  "Vendor Products ":["/New Products Requests","/Approved Products","/Denied Products"],
+							   "Order": ["/Pending","/Confirmed","/Packing","/Shipped","/Delivered","/Returned","/Not delivered","/Cancelled"], 
+							  "Refund Request List" :["/Pending Refund","/Approved Refund","/Refunded Refund","/Rejected Refund"], Banners: ["/Banners"],
+							   "Advertisement & Deals" :["/Add Advertisement","/Deal of the day","/Today Offer"], 
+							   "Notification" :["/Send Notification"],
+							    "Suggestion":["/Suggestion"],
+								 "Messages" :["/Messages"],
+								  "All Transaction" :["/All Transaction"],
+								   "Setting" :["/Tax & Fare charge","/About Us","/Term & Conditions","/Return Policy","/Cancellation Policy","/Refund Policy","/Privacy & Policy","/Faq","/Contact Us"]
+						  } 
+						})
+				}
+				
+			}else{
+				// Compare the provided password with the hashed password in the database
+				const passwordMatch = await bcrypt.compare(password, matchData.password);
+ 
+				if (!passwordMatch) {
+					return res.status(400).json({ "result": "false", "message": "Invalid email and password" });
 				} else {
 					// Generate a JWT token
 					const token = jwt.sign({ adminId: matchData._id, email: matchData.email }, process.env.ACCESS_TOKEN_SECURITY, { expiresIn: '24h' });
-					res.status(200).json({ "result": "true", "message": "Admin login sucessfully", token, data: matchData })
+					const dinu=matchData.restrictions;
+					res.status(200).json({ "result": "true", "message": "Staff login sucessfully", token, data: matchData,permission:dinu })
 				}
 
 			}
-
-		}
-
-	} catch (err) {
+	
+		}catch (err) {
 		res.status(400).json({ "result": "false", "message": err.message });
 	}
 
 };
+
 
 
 
@@ -3999,31 +4052,31 @@ const deleteAttributes = async (req, res) => {
 
 
 
-const { GoogleAuth } = require('google-auth-library');
-const fs = require('fs');
-const path = require('path');
+// const { GoogleAuth } = require('google-auth-library');
+// const fs = require('fs');
+// const path = require('path');
 
-const SERVICE_ACCOUNT_FILE = path.join(__dirname, '../inntadmin.json');
-const SCOPES = ['https://www.googleapis.com/auth/firebase.messaging'];
+// const SERVICE_ACCOUNT_FILE = path.join(__dirname, '../inntadmin.json');
+// const SCOPES = ['https://www.googleapis.com/auth/firebase.messaging'];
 
-async function getAccessToken() {
-    const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_FILE, 'utf8'));
+// async function getAccessToken() {
+//     const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_FILE, 'utf8'));
 
-    const client = new GoogleAuth({
-        credentials: serviceAccount,
-        scopes: SCOPES,
-    });
+//     const client = new GoogleAuth({
+//         credentials: serviceAccount,
+//         scopes: SCOPES,
+//     });
 
-    const authClient = await client.getClient();
-    const accessToken = await authClient.getAccessToken();
-    return accessToken.token;
-}
+//     const authClient = await client.getClient();
+//     const accessToken = await authClient.getAccessToken();
+//     return accessToken.token;
+// }
 
-getAccessToken().then(token => {
-    console.log('Access Token:', token);
-}).catch(err => {
-    console.error('Error getting access token:', err);
-});
+// getAccessToken().then(token => {
+//     console.log('Access Token:', token);
+// }).catch(err => {
+//     console.error('Error getting access token:', err);
+// });
 
 
 
@@ -4063,6 +4116,107 @@ const addPushNotification = async (req, res) => {
         res.status(400).json({ "result": "false", "message": err.message });
      }
 };
+
+
+
+
+
+
+//  staffList
+const staffList = async (req, res) => {
+	try {
+			const matchData = await Admin.find({type:1}).sort({_id:-1});
+			if (!matchData) {
+				return res.status(400).json({ "result": "false",
+					"message": "Record does not found"
+					})
+			}
+				res.status(200).json({ "result": "true", "message": "Staff list got sucessfully",
+				data: matchData,
+						  
+			});
+	
+		}catch (err) {
+		res.status(400).json({ "result": "false", "message": err.message });
+	}
+
+};
+
+
+
+//  staffList
+const staff_active_deactive = async (req, res) => {
+	try {
+		const {staffId}=req.body;
+		if(!staffId){
+        return res.status(400).json({"result":"false","message":"required parameter is staffId"})
+		}
+		   const data=await Admin.findOne({_id:staffId,type:1,staff_status:0});
+		   if(data){
+			const matchData = await Admin.findOneAndUpdate({_id:staffId,type:1},{staff_status:1},{new:true});
+			  res.status(200).json({ "result": "true", "message": "Staff blocked sucessfully",
+				data:matchData,
+						  
+			});
+		}else{
+			const matchData = await Admin.findOneAndUpdate({_id:staffId,type:1},{staff_status:0},{new:true});
+			res.status(200).json({ "result": "true", "message": "Staff unblocked sucessfully",
+			  data:matchData,
+		})
+	}
+			
+			
+		}catch (err) {
+		res.status(400).json({ "result": "false", "message": err.message });
+	}
+
+};
+
+
+
+//  staffList
+const update_staff = async (req, res) => {
+	try {
+		const {staffId,first_name,email,password,last_name,restrictions}=req.body;
+		if(!staffId){
+        return res.status(400).json({"result":"false","message":"required parameter is staffId and optionals are first_name,email,password,last_name,restrictions"})
+		}
+
+		   // Parse and validate restrictions
+			let parsedRestrictions;
+			try {
+			  parsedRestrictions = JSON.parse(restrictions);
+			  if (typeof parsedRestrictions !== 'object' || Array.isArray(parsedRestrictions)) {
+				throw new Error("Invalid restrictions format");
+			  }
+			} catch (err) {
+			  return res.status(400).json({
+				result: false,
+				message: "Invalid restrictions format",
+			  });
+			}
+		
+			const matchData = await Admin.findOneAndUpdate({_id:staffId,type:1},{staffId,first_name,email,password,last_name,restrictions:parsedRestrictions},{new:true});
+			if (!matchData) {
+				return res.status(400).json({ "result": "false",
+					"message": "Record does not found"
+					})
+			}
+				res.status(200).json({ "result": "true", "message": "Staff data updated sucessfully",
+				data: matchData,
+						  
+			});
+	
+		}catch (err) {
+		res.status(400).json({ "result": "false", "message": err.message });
+	}
+
+};
+
+
+
+
+
 
 
 
@@ -4230,6 +4384,10 @@ attributes_list,
 deleteAttributes,
 get_attribute,
 addPushNotification,
+staffList,
+staff_active_deactive,
+update_staff,
+
 
 
 };

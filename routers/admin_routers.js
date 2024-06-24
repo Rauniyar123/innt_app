@@ -232,6 +232,9 @@ router.post("/deleteAttributes",adminControllers.deleteAttributes);
 router.get("/attributes_list",adminControllers.attributes_list);
 router.post("/get_attribute",adminControllers.get_attribute);
 router.post("/addPushNotification",adminControllers.addPushNotification);
+router.get("/staffList",adminControllers.staffList);
+router.post("/staff_active_deactive",adminControllers.staff_active_deactive);
+router.post("/update_staff",adminControllers.update_staff);
 
 
 /*..............export router..................*/

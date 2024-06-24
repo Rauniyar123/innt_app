@@ -170,6 +170,8 @@ router.post("/website_InnoutcartList",userControllers.website_InnoutcartList);
 router.post("/send_otp",userControllers.send_otp);
 router.post("/setDefault_address",userControllers.setDefault_address);
 router.post("/find_orderDetails_byqrcode",userControllers.find_orderDetails_byqrcode);
+router.post("/deleteUser",userControllers.deleteUser);
+router.post("/similarInntproductLists",userControllers.similarInntproductLists);
 
 
 /*..............export router..................*/

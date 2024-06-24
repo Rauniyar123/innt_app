@@ -338,8 +338,12 @@ const venderLogin_withEmail=async(req,res)=>{
                     }
         
                     const matchData=await Staff.findOne({password,$or:[{phone:key},{email:key}]});
-                   
+                  
                     if(matchData){
+                      if(matchData.active_status=="1"){
+                        return res.status(400).json({"result":"false","message":"Your account has been blocked"})
+                       }
+
                       await Staff.findOneAndUpdate({$or:[{phone:key},{email:key}]},{fcm_Id},{new:true});
                       const dinu=matchData.restrictions;
                           res.status(200).json({"result":"true","message":"Staff login sucessfully",
@@ -4074,7 +4078,7 @@ const createStaff = async (req, res) => {
     const {
       shopId,
       fname,
-      loname,
+      lname,
       dob,
       password,
       phone,
@@ -4122,7 +4126,7 @@ const createStaff = async (req, res) => {
     const insertData = new Staff({
       shopId,
       fname,
-      loname,
+      lname,
       dob,
       phone,
       email,
@@ -4424,6 +4428,7 @@ const sendNotification = async (req, res) => {
 };
 
 
+
 const dummy_api=async(req,res)=>{
   const data={
     products:["/product_add","/products_list","/products_delete"],
@@ -4433,6 +4438,84 @@ const dummy_api=async(req,res)=>{
   res.status(200).json({"result":"false","message":"get data",data})
 
 };
+
+
+
+const updateStaff = async (req, res) => {
+  try {
+    const {
+      staffId,
+      fname,
+      lname,
+      dob,
+      password,
+      phone,
+      email,
+      position,
+      restrictions,
+    } = req.body;
+
+    if (!staffId) {
+      return res.status(400).json({
+        result: false,
+        message: "Required parameters are staffId, fname, phone,lanme,dob,position,restrictions,email,staff_image",
+      });
+    }
+
+
+    const matchData = await Staff.findOne({_id:staffId});
+    if (!matchData) {
+      return res.status(400).json({
+        result: false,
+        message: "Invalid staffId",
+      });
+    }
+
+    let staff_image;
+    if (req.file) {
+      staff_image = req.file.filename;
+    }
+
+     // Parse and validate restrictions
+    let parsedRestrictions;
+    try {
+      parsedRestrictions = JSON.parse(restrictions);
+      if (typeof parsedRestrictions !== 'object' || Array.isArray(parsedRestrictions)) {
+        throw new Error("Invalid restrictions format");
+      }
+    } catch (err) {
+      return res.status(400).json({
+        result: false,
+        message: "Invalid restrictions format",
+      });
+    }
+
+     
+    const insertData =await Staff.findOneAndUpdate({_id:staffId},{
+      fname,
+      lname,
+      dob,
+      phone,
+      email,
+      position,
+      password,
+      restrictions: parsedRestrictions,
+      staff_image: staff_image,
+    },
+    {new:true});
+      
+    res.status(200).json({
+      result: true,
+      message: "Data updated successfully",
+      data: insertData,
+    });
+  } catch (err) {
+    console.log(err.message);
+    res.status(400).json({ result: false, message: err.message });
+  }
+};
+
+
 
 
 
@@ -4537,8 +4620,7 @@ attributes_list,
 get_attribute,
 sendNotification,
 dummy_api,
-
-
+updateStaff,
 
 
 

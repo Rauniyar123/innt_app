@@ -36,7 +36,7 @@ const Chat=require("../models/chat");
 const Promotion=require("../models/vender_promotion_models");
 const Driver=require("../models/driver_models");
 const Refferal=require("../models/refferal");
-
+const User_delete=require("../models/user_delete");
 
 /*............import dependancies................*/
 const mongoose = require("mongoose");
@@ -99,6 +99,22 @@ function generateFriendQrcode() {
 function generatePaymentQrcode() {
 	const characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 	const length = 250;
+	let randomString = '';
+
+	for (let i = 0; i < length; i++) {
+		const index = Math.floor(Math.random() * characters.length);
+		randomString += characters.charAt(index);
+	}
+
+	return randomString;
+
+}
+
+
+
+function generateOrderQrcode() {
+	const characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+	const length = 50;
 	let randomString = '';
 
 	for (let i = 0; i < length; i++) {
@@ -293,6 +309,11 @@ const userLogin_api = async (req, res) => {
 						"message": "Your account has been blocked"
 					});
 
+				}else if(matchData.user_status===2){
+					res.status(400).json({
+						"result": "false",
+						"message": "Your account has been deleted"
+					});
 				}
 				 else {
 					await User.findOneAndUpdate({_id:matchData._id},{fcm_id:fcm_id},{new:true});
@@ -846,8 +867,31 @@ const AddUserAddress = async (req, res) => {
 	try {
 		const { place_type, state, village_name,longitude,latitude, pin_code, building_no, city_name, landmark, userId } = req.body;
 		if (!userId) {
-			res.status(400).json({ "result": "false", "message": "required parameters is  userId and optional are place_type, state,village_name,pin_code,building_no,city_name,landmark,longitude,latitude" })
-		} else {
+		return	res.status(400).json({ "result": "false", "message": "required parameters is  userId and optional are place_type, state,village_name,pin_code,building_no,city_name,landmark,longitude,latitude" })
+		}
+		
+		const data =await User_Address.findOne({userId});
+		if(!data){
+			const insertData = new User_Address({
+				place_type,
+				state,
+				village_name,
+				pin_code,
+				building_no,
+				city_name,
+				landmark,
+				userId,
+				status:1,
+				location: {
+					type: "Point",
+					  coordinates: [parseFloat(longitude), parseFloat(latitude)],
+					},
+			})
+			const data = await insertData.save();
+			res.status(200).json({ "result": "false", "message": "data inserted sucessfully", data: data });
+		}
+		
+		else {
 			const insertData = new User_Address({
 				place_type,
 				state,
@@ -2433,8 +2477,8 @@ const addOrder = async (req, res) => {
         findData.products.forEach(product => {
             const ordercodes = Math.floor(10000000 + Math.random() * 90000000);
 			const verifiedOrdercodes = Math.floor(100000 + Math.random() * 900000);
-            const qr = generateRandomString();
-
+            const qr = generateOrderQrcode();
+            const orderQRcode=generateOrderQrcode();
 
             if (!orders[product.shopId]) {
                 orders[product.shopId] = {
@@ -2443,7 +2487,7 @@ const addOrder = async (req, res) => {
                     shopId: product.shopId,
                     orderId: ordercodes,
 					transjectionId: transId,
-					qrcodes:qr,
+					qrcodes:orderQRcode,
 					pay_place:delivery_place,
 					delivery_charge:product.shipping_charge,
 					orderVerification_code:verifiedOrdercodes,
@@ -4829,25 +4873,55 @@ const Addfriends=async(req,res)=>{
 
 
 
-
-const friendList=async(req,res)=>{
-	const {userId} = req.body;
-    if (!userId ) {
-        return res.status(400).json({ "result": "false", "message": "Required parameters are userId" });
+const friendList = async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) {
+        return res.status(400).json({ "result": "false", "message": "Required parameter is userId" });
     }
 
     try {
-        const data = await Friend.find({userId}).populate('friendId');
-       if(!data){
-		return res.status(400).json({ "result": "false", "message": "User not found"});
-	   }
-        res.status(200).json({ "result": "true", "message": " Friend list got  sucessfully", data:data });
+        // Fetch friends where the user is `userId`
+        const data1 = await Friend.find({ userId }).populate('friendId').sort({ _id: -1 });
+
+        // Fetch friends where the user is `friendId`
+        const data2 = await Friend.find({ friendId: userId }).populate('userId').sort({ _id: -1 });
+
+        // Map data to required format
+        const filtr1 = data1.map(item => ({
+            userId: item.userId,
+            friendId: item.friendId,
+        }));
+
+        const filtr2 = data2.map(item => ({
+            userId: item.friendId,
+            friendId: item.userId,
+        }));
+
+        // Merge the two datasets
+        const mergedData = [...filtr1, ...filtr2];
+
+        // Remove duplicates by `_id` field if necessary
+        // Assuming each friend relation has a unique `_id` in `Friend` model
+        const uniqueMergedData = mergedData.filter((item, index, self) =>
+            index === self.findIndex((t) =>
+                t.userId._id.equals(item.userId._id) && t.friendId._id.equals(item.friendId._id)
+            )
+        );
+
+        // Check if there is data
+        if (uniqueMergedData.length === 0) {
+            return res.status(404).json({ "result": "false", "message": "User has no friends" });
+        }
+
+        // Return the response
+        res.status(200).json({ "result": "true", "message": "Friend list retrieved successfully", data: uniqueMergedData });
     } catch (err) {
         console.log(err);
-        res.status(500).json({ "result": "false", "message": err.message });
+        res.status(500).json({ "result": "false", "message": "An error occurred while fetching the friend list" });
     }
-
 };
+
+
 
 
 
@@ -4907,6 +4981,9 @@ const getDataToQrcode=async(req,res)=>{
 			orderId: matchData.orderId, 
 			createdAt: matchData.createdAt,
 			updatedAt: matchData.updatedAt,
+			order_Id: matchData._id, 
+			qrcodes: matchData.qrcodes,
+			order_status: matchData.status,
 			products:matchData.products,
 			...address 
 	
@@ -6123,35 +6200,76 @@ const find_orderDetails_byqrcode=async(req,res)=>{
 	
 
 
-	
+const deleteUser=async(req,res)=>{
+	try {
+        const {userId,reason,text} = req.body;
+        if (!userId) {
+            return res.status(400).json({ "result": "false", "message": "required parameters is userId,reason,text" });
+        }
 
-// sendOtp.js
-require('dotenv').config();
-const send_otp = async (req, res) => {
-	try{
-   
-const credentials = {
-    apiKey:process.env.AFRICASTALKING_API_KEY,   
-    username:process.env.AFRICASTALKING_USERNAME,
+		const data=await User.findOne({_id:userId});
+		  if (data.length === 0) {
+			  return res.status(400).json({ "result": "false", "message": "Record not found" });
+		  }
+		  const insertData=new User_delete({userId,reason,text});
+		  await insertData.save();
+		  await User.findOneAndUpdate({_id:userId},{user_status:2},{new:true});
+    
+        res.status(200).json({ 
+			"result": "true",
+		    "message": "User deleted successfully",
+		     data:data
+	});
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json({ "result": "false", "message": err.message });
+    }
+
 };
-const AfricasTalking = require('africastalking')(credentials);
 
-// Initialize a service e.g. SMS
-const sms = AfricasTalking.SMS
-const otp = Math.floor(100000 + Math.random() * 900000);
-// Use the service
-const options = {
-    to: ['+918302278240'],
-    message:'hiit ${otp}',
-	
-}
 
-const response = await sms.send(options);
-  res.status(200).json({result:"true",data:response})
-}catch(err){
-	console.log(err)
-	res.status(500).json({ result: "false", error: err.message });
-}
+
+
+const similarInntproductLists=async(req,res)=>{
+	try {
+		const {subSubcategoryId}=req.body;
+		if(!subSubcategoryId){
+			return res.status(400).json({"result":"false","message":"Required parameter are subSubcategoryId "})
+		}
+		// const Maincategories=await Maincategory.find({maincategory_englishName:"Innt"});
+        //  const categories=await Category.find({maincategoryId:Maincategories});
+		 //const categoryIds = categories.map(category => category._id);
+		 const productList = await Product.find({sub_subcategoryId:subSubcategoryId}).sort({ _id: -1 });
+		if (productList || productList.length > 0) {
+			const data = productList.map(item => ({
+				productId: item._id,
+				venderId: item.venderId,
+				categoryId: item.categoryId,
+				sub_subcategoryId:item.sub_subcategoryId,
+				subcategoryId:item.subcategoryId,
+				product_name: item.product_name,
+				description: item.description,
+				image1: item.image1,
+				product_code: item.product_code,
+				unit_price: item.unit_price,
+				sale_price: item.sale_price,
+				discount: item.discount[0].discount_value,
+				discount_name: item.discount[0].discount_type,
+
+
+			}));
+			res.status(200).json({ "result": "true", "message": "product data get sucessfully", data: data })
+		} else {
+			res.status(400).json({ "result": "false", "message": "Records not found" })
+		}
+	} catch (err) {
+		console.log(err.message)
+		res.status(400).json({ "result": "false", "message": err.message })
+
+	}
+
+
 };
 
 
@@ -6173,8 +6291,8 @@ const response = await sms.send(options);
 // // Use the service
 // const options = {
 //     to: '+918302278240',
-//     message: `hiit ${otp}`,
-// 	from:'DINESH'
+//     message: `hiit ${otp}`
+	
 	
 // }
 
@@ -6186,6 +6304,37 @@ const response = await sms.send(options);
 // }
 // };
 
+
+
+
+// sendOtp.js
+require('dotenv').config();
+const send_otp = async (req, res) => {
+	try{
+   
+const credentials = {
+    apiKey:process.env.AFRICASTALKING_API_KEY,   
+    username:process.env.AFRICASTALKING_USERNAME,
+};
+const AfricasTalking = require('africastalking')(credentials);
+
+// Initialize a service e.g. SMS
+const sms = AfricasTalking.SMS
+const otp = Math.floor(100000 + Math.random() * 900000);
+// Use the service
+const options = {
+    to: ['+918302278240'],
+    message:`hiit ${otp}`
+
+}
+
+const response = await sms.send(options);
+  res.status(200).json({result:"true",data:response})
+}catch(err){
+	console.log(err)
+	res.status(500).json({ result: "false", error: err.message });
+}
+};
 
 
 
@@ -6255,10 +6404,7 @@ module.exports = {
 	filterShopProduct,
 	//Chat
 	userSend_message,
-	//venderChatList,
 	userGet_message,
-	//removeUser_Message,
-	//userSendMessage_list,
 	favouriteShop,
     favouriteShopList,
 	trendingNow,
@@ -6316,6 +6462,7 @@ module.exports = {
 	send_otp,
 	setDefault_address,
 	find_orderDetails_byqrcode,
-	
+	deleteUser,
+	similarInntproductLists,
 
 };

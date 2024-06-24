@@ -17,13 +17,26 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended:false }));
 app.use(bodyParser.json());
 
-app.use(cors({
-       origin: 'http://localhost:3000', // Replace with your React app's origin
-       credentials: true,
-       allowedHeaders: 'Content-Type, Authorization, token', // Add 'token' to the allowed headers
-     }));
 
-     
+     const allowedOrigins = [
+      'https://www.vendor.innt.bf',
+      'https://www.admin.innt.bf',
+      'https://www.innt.bf'
+    ];
+    
+    app.use(cors({
+      origin: function (origin, callback) {
+        // Allow requests with no origin, like mobile apps or curl requests
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        } else {
+          return callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+      allowedHeaders: 'Content-Type, Authorization, token'
+    }));
 
 
 

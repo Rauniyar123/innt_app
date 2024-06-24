@@ -7,15 +7,29 @@ const adminSchema=new mongoose.Schema({
     password:{
         type:String
     },
-    otp:{
-        type:Number
+    first_name:{
+        type:String
     },
-wallet:{
+    last_name:{
+        type:String
+    },
+    address:{
+        type:String
+    },
+type:{
     type:Number,
     default:0
 },
+staff_status:{
+    type:Number,
+    default:0
+},
+restrictions: { 
+    type: Map,
+    of: [String], 
+    required: true 
+  },
 
-
-});
+},{timestamps:true});
 
 module.exports=adminModel=mongoose.model("admin",adminSchema);
